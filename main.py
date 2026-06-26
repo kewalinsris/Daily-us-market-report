@@ -1,6 +1,7 @@
 import os
 import requests
 import yfinance as yf
+import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -8,6 +9,10 @@ from zoneinfo import ZoneInfo
 LINE_CHANNEL_ACCESS_TOKEN = os.environ["LINE_CHANNEL_ACCESS_TOKEN"]
 LINE_USER_ID = os.environ["LINE_USER_ID"]
 
+
+# =========================
+# Indicators
+# =========================
 
 def calculate_rsi(close, period=14):
     delta = close.diff()
@@ -24,34 +29,39 @@ def calculate_rsi(close, period=14):
 def calculate_atr(high, low, close, period=14):
     prev_close = close.shift(1)
 
-    tr1 = high - low
-    tr2 = (high - prev_close).abs()
-    tr3 = (low - prev_close).abs()
+    tr = pd.concat(
+        [
+            high - low,
+            (high - prev_close).abs(),
+            (low - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
 
-    true_range = tr1.to_frame("tr1")
-    true_range["tr2"] = tr2
-    true_range["tr3"] = tr3
-
-    return true_range.max(axis=1).rolling(period).mean()
+    return tr.rolling(period).mean()
 
 
-def get_rsi_status(rsi):
-    if rsi < 30:
+def get_rsi_status(rsi_value):
+    if rsi_value < 30:
         return "🔵 Oversold"
-    if rsi > 70:
+    if rsi_value > 70:
         return "🔴 Overbought"
     return "🟢 Normal"
 
 
-def get_vix_status(vix):
-    if vix < 15:
+def get_vix_status(vix_value):
+    if vix_value < 15:
         return "🟢 Very Low"
-    if vix < 20:
+    if vix_value < 20:
         return "🟢 Low"
-    if vix < 30:
+    if vix_value < 30:
         return "🟡 Elevated"
     return "🔴 High"
 
+
+# =========================
+# LINE
+# =========================
 
 def send_line_message(text):
     url = "https://api.line.me/v2/bot/message/push"
@@ -63,12 +73,7 @@ def send_line_message(text):
 
     payload = {
         "to": LINE_USER_ID,
-        "messages": [
-            {
-                "type": "text",
-                "text": text,
-            }
-        ],
+        "messages": [{"type": "text", "text": text}],
     }
 
     response = requests.post(url, headers=headers, json=payload)
@@ -76,6 +81,68 @@ def send_line_message(text):
     print(response.text)
     response.raise_for_status()
 
+
+# =========================
+# Buy the Dip Logic v2.0
+# =========================
+
+def build_buy_the_dip_logic(
+    latest_spx,
+    latest_rsi,
+    latest_vix,
+    distance_from_ath,
+    ma200,
+    atr_percent,
+):
+    core_score = 0
+    reasons = []
+
+    if distance_from_ath <= -10:
+        core_score += 1
+        reasons.append("✓ ตลาดย่อตัวมากกว่า 10% จากจุดสูงสุด")
+
+    if latest_vix > 25:
+        core_score += 1
+        reasons.append("✓ VIX สูงกว่า 25 แสดงว่าตลาดเริ่มมีความกังวล")
+
+    if latest_rsi < 35:
+        core_score += 1
+        reasons.append("✓ RSI ต่ำกว่า 35 ตลาดเริ่มเข้าสู่ภาวะ Oversold")
+
+    atr_is_high = atr_percent >= 3.5
+
+    if core_score < 2:
+        return "🟢 Continue DCA", "❌ Not Yet"
+
+    if latest_spx > ma200:
+        dca_status = "🟢 DCA + Buy the Dip (Top-up)"
+        buy_dip_text = (
+            "🔵 Strong\n\n"
+            "เหตุผล\n"
+            + "\n".join(reasons)
+            + "\n✓ ราคาอยู่เหนือ 200 DMA แนวโน้มระยะยาวยังแข็งแรง"
+        )
+    else:
+        dca_status = "🟢 DCA + Buy the Dip (Gradual)"
+        buy_dip_text = (
+            "🔵 Gradual / DCA\n\n"
+            "เหตุผล\n"
+            + "\n".join(reasons)
+            + "\n✓ ราคาอยู่ต่ำกว่า 200 DMA จึงควรทยอยซื้อแบ่งไม้ ไม่ควรใส่เงินก้อนทีเดียว"
+        )
+
+    if atr_is_high:
+        buy_dip_text += (
+            "\n⚠️ ATR สูงผิดปกติ ตลาดยังผันผวนมาก "
+            "ควรทยอยสะสมช้าลงหรือรอ 1–2 วันให้ตลาดนิ่งขึ้น"
+        )
+
+    return dca_status, buy_dip_text
+
+
+# =========================
+# Market Report
+# =========================
 
 def get_market_report():
     spx = yf.Ticker("^GSPC").history(period="1y", interval="1d")
@@ -93,19 +160,18 @@ def get_market_report():
     vix_close = vix_data["Close"].dropna()
 
     latest_spx = float(close.iloc[-1])
-    prev_spx = float(close.iloc[-2])
-    spx_change_pct = (latest_spx - prev_spx) / prev_spx * 100
+    previous_spx = float(close.iloc[-2])
+    spx_change_pct = (latest_spx - previous_spx) / previous_spx * 100
 
     latest_rsi = float(calculate_rsi(close).dropna().iloc[-1])
     latest_vix = float(vix_close.iloc[-1])
 
     ma50 = float(close.rolling(50).mean().iloc[-1])
     ma200 = float(close.rolling(200).mean().iloc[-1])
-    ema20 = float(close.ewm(span=20, adjust=False).mean().iloc[-1])
 
-    atr = calculate_atr(high, low, close).dropna()
-    latest_atr = float(atr.iloc[-1])
-    atr_pct = latest_atr / latest_spx * 100
+    atr_series = calculate_atr(high, low, close).dropna()
+    latest_atr = float(atr_series.iloc[-1])
+    atr_percent = latest_atr / latest_spx * 100
 
     ath = float(close.max())
     distance_from_ath = (latest_spx - ath) / ath * 100
@@ -125,33 +191,14 @@ def get_market_report():
         else "🔴 ระยะยาว (200 DMA): ขาลง"
     )
 
-    dca_status = "🟢 Continue" if latest_spx > ma200 else "🟡 Review"
-
-    buy_the_dip = (
-        latest_rsi < 30
-        and latest_vix > 25
-        and distance_from_ath <= -10
-        and latest_spx > ma200
-        and latest_spx < ema20
-        and atr_pct < 3.5
+    dca_status, buy_dip_text = build_buy_the_dip_logic(
+        latest_spx=latest_spx,
+        latest_rsi=latest_rsi,
+        latest_vix=latest_vix,
+        distance_from_ath=distance_from_ath,
+        ma200=ma200,
+        atr_percent=atr_percent,
     )
-
-    if buy_the_dip:
-        buy_dip_text = "\n".join(
-            [
-                "🔵 Yes",
-                "",
-                "เหตุผลที่ควร Buy the Dip",
-                "✓ RSI อยู่ในภาวะ Oversold",
-                "✓ VIX สูงกว่า 25 ตลาดมีความกังวล",
-                "✓ ตลาดย่อตัวมากกว่า 10% จาก ATH",
-                "✓ แนวโน้มระยะยาวยังเป็นขาขึ้น",
-                "✓ ราคาอยู่ต่ำกว่า EMA20",
-                "✓ ATR ยังไม่สูงผิดปกติ",
-            ]
-        )
-    else:
-        buy_dip_text = "❌ Not Yet"
 
     date_th = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%d/%m/%Y")
 
@@ -192,3 +239,4 @@ if __name__ == "__main__":
     report = get_market_report()
     print(report)
     send_line_message(report)
+
