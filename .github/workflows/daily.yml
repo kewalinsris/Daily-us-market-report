@@ -151,57 +151,48 @@ jobs:
               if buy_the_dip:
                   buy_dip_text = """🔵 Yes
 
-          เหตุผลที่ควร Buy the Dip
-          ✓ RSI อยู่ในภาวะ Oversold
-          ✓ VIX สูงกว่า 25 ตลาดมีความกังวล
-          ✓ ตลาดย่อตัวมากกว่า 10% จาก ATH
-          ✓ แนวโน้มระยะยาวยังเป็นขาขึ้น
-          ✓ ราคาอยู่ต่ำกว่า EMA20 แปลว่ามีการย่อตัวจริง
-          ✓ MACD ยังไม่อ่อนแรงเกินไป
-          ✓ ATR ยังไม่สูงผิดปกติ"""
+เหตุผลที่ควร Buy the Dip
+✓ RSI อยู่ในภาวะ Oversold
+✓ VIX สูงกว่า 25 ตลาดมีความกังวล
+✓ ตลาดย่อตัวมากกว่า 10% จาก ATH
+✓ แนวโน้มระยะยาวยังเป็นขาขึ้น
+✓ ราคาอยู่ต่ำกว่า EMA20 แปลว่ามีการย่อตัวจริง
+✓ MACD ยังไม่อ่อนแรงเกินไป
+✓ ATR ยังไม่สูงผิดปกติ"""
               else:
                   buy_dip_text = "❌ Not Yet"
 
               date_th = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%d/%m/%Y")
 
               message = f"""📊 Daily US Market Report
-          ประจำวันที่ {date_th}
+ประจำวันที่ {date_th}
 
-          ━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━
 
-          S&P 500
-          {latest_spx:,.2f} ({spx_change_pct:+.2f}%)
+S&P 500
+{latest_spx:,.2f} ({spx_change_pct:+.2f}%)
 
-          RSI (14)
-          {rsi_status} ({latest_rsi:.1f})
+RSI (14)
+{rsi_status} ({latest_rsi:.1f})
 
-          VIX
-          {vix_status} ({latest_vix:.1f})
+VIX
+{vix_status} ({latest_vix:.1f})
 
-          Trend
-          {trend_50}
-          {trend_200}
+Trend
+{trend_50}
+{trend_200}
 
-          ระดับราคา
-          ATH {distance_from_ath:.2f}%
+ระดับราคา
+ATH {distance_from_ath:.2f}%
 
-          EMA20
-          {ema20:,.2f}
+━━━━━━━━━━━━━━
 
-          MACD
-          {latest_macd:.2f} / Signal {latest_macd_signal:.2f}
+DCA
+{dca_status}
 
-          ATR
-          {latest_atr:.2f} ({atr_pct:.2f}%)
-
-          ━━━━━━━━━━━━━━
-
-          DCA
-          {dca_status}
-
-          Buy the Dip
-          {buy_dip_text}
-          """
+Buy the Dip
+{buy_dip_text}
+"""
               return message
 
           if __name__ == "__main__":
