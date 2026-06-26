@@ -38,10 +38,15 @@ def send_line_message(text):
 
 def get_market_report():
     spx = yf.download("^GSPC", period="1y", interval="1d", progress=False)
-    vix = yf.download("^VIX", period="1mo", interval="1d", progress=False)
+vix = yf.download("^VIX", period="1mo", interval="1d", progress=False)
 
-    if spx.empty or vix.empty:
-        raise ValueError("ไม่สามารถดึงข้อมูลตลาดได้")
+if isinstance(spx.columns, pd.MultiIndex):
+    spx.columns = spx.columns.get_level_values(0)
+
+if isinstance(vix.columns, pd.MultiIndex):
+    vix.columns = vix.columns.get_level_values(0)
+
+if spx.empty or vix.empty:
 
     spx_close = spx["Close"].dropna()
     vix_close = vix["Close"].dropna()
