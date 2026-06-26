@@ -2,14 +2,25 @@ name: Daily US Market Report
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 2-6"
 
 jobs:
   send-message:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout latest main
         uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Show current file
+        run: |
+          pwd
+          ls -la
+          echo "----- main.py preview -----"
+          grep -n "Buy the Dip\|Version\|DCA" main.py || true
 
       - name: Setup Python
         uses: actions/setup-python@v5
