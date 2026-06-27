@@ -3,7 +3,7 @@ name: Daily US Market Report
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 2 * * 2-6"
+      - cron: "36 2 * * *"
 
 jobs:
   send-message:
