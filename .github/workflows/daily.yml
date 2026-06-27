@@ -2,8 +2,6 @@ name: Daily US Market Report
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/10 * * * *"
 
 jobs:
   send-message:
